@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>StockAI — Prediction Report</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Courier New', monospace; background: #fff; color: #111; padding: 40px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start;
+                  border-bottom: 3px solid #111; padding-bottom: 20px; margin-bottom: 30px; }
+        .brand { font-size: 2rem; font-weight: 900; letter-spacing: 0.05em; }
+        .brand span { color: #00aa66; }
+        .meta { text-align: right; font-size: 0.8rem; color: #555; line-height: 1.8; }
+        h2 { font-size: 1.1rem; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+        th { background: #111; color: #fff; padding: 10px 12px; text-align: left;
+             font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; }
+        td { padding: 9px 12px; border-bottom: 1px solid #e5e5e5; }
+        tr:nth-child(even) td { background: #f9f9f9; }
+        .acc-high { color: #00aa66; font-weight: 700; }
+        .acc-mid  { color: #cc8800; font-weight: 700; }
+        .acc-low  { color: #cc2200; font-weight: 700; }
+        .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 16px;
+                  font-size: 0.72rem; color: #888; display: flex; justify-content: space-between; }
+        .print-btn { position: fixed; top: 20px; right: 20px; background: #00aa66; color: #fff;
+                     border: none; padding: 12px 24px; cursor: pointer; font-size: 0.9rem;
+                     border-radius: 6px; font-weight: 700; }
+        .print-btn:hover { background: #008855; }
+        @media print {
+            .print-btn { display: none; }
+            body { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
+
+<div class="header">
+    <div>
+        <div class="brand">Stock<span>AI</span></div>
+        <div style="font-size:0.8rem;color:#555;margin-top:6px;">LSTM-Powered Stock Prediction Report</div>
+    </div>
+    <div class="meta">
+        <div><strong>User:</strong> {{ user.username }}</div>
+        <div><strong>Email:</strong> {{ user.email }}</div>
+        <div><strong>Generated:</strong> {{ generated }}</div>
+        <div><strong>Total Records:</strong> {{ rows|length }}</div>
+    </div>
+</div>
+
+<h2>Prediction History</h2>
+
+{% if rows %}
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Stock</th>
+            <th>Pred. Date</th>
+            <th>Prev Close</th>
+            <th>Predicted</th>
+            <th>Actual</th>
+            <th>Accuracy</th>
+            <th>Confidence</th>
+            <th>Created</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in rows %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ p.stock_ticker }}</strong></td>
+            <td>{{ p.prediction_date }}</td>
+            <td>{{ p.close_price }}</td>
+            <td><strong>{{ p.predicted_price }}</strong></td>
+            <td>{{ p.actual_price if p.actual_price else '—' }}</td>
+            <td>
+                {% if p.accuracy %}
+                <span class="{% if p.accuracy >= 90 %}acc-high{% elif p.accuracy >= 70 %}acc-mid{% else %}acc-low{% endif %}">
+                    {{ p.accuracy }}%
+                </span>
+                {% else %}Pending{% endif %}
+            </td>
+            <td>{{ p.confidence }}%</td>
+            <td>{{ p.created_at }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color:#888;padding:20px 0;">No predictions found.</p>
+{% endif %}
+
+<div class="footer">
+    <span>StockAI — LSTM Stock Price Prediction System</span>
+    <span>Generated on {{ generated }}</span>
+</div>
+
+</body>
+</html>

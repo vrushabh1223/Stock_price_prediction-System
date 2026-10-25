@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Notifications — StockAI{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">◉ All Notifications</h2>
+        <span class="panel-badge">{{ notifs|length }} total</span>
+    </div>
+
+    {% if notifs %}
+    <div class="notif-list">
+        {% for n in notifs %}
+        <div class="notif-item {% if not n.is_read %}notif-unread{% endif %}">
+            <div class="notif-icon">
+                {% if '📈' in n.message %}📈
+                {% elif '📉' in n.message %}📉
+                {% else %}🔔{% endif %}
+            </div>
+            <div class="notif-body">
+                <div class="notif-msg">{{ n.message }}</div>
+                <div class="notif-meta">
+                    {% if n.stock_ticker %}
+                        <span class="ticker-badge">{{ n.stock_ticker }}</span>
+                    {% endif %}
+                    <span class="mono notif-time">{{ n.created_at }}</span>
+                </div>
+            </div>
+            <div class="notif-status">
+                {% if not n.is_read %}<span class="unread-dot"></span>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🔕</div>
+        <p>No notifications yet. Make a prediction to get started!</p>
+        <a href="{{ url_for('dashboard') }}#predict" class="btn-primary" style="display:inline-block;text-decoration:none;margin-top:1rem">
+            Go Predict →
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

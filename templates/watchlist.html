@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Watchlist — StockAI{% endblock %}
+{% block page_title %}My Watchlist{% endblock %}
+
+{% block content %}
+
+<!-- ADD STOCK -->
+<div class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">★ Add Stock to Watchlist</h2>
+    </div>
+    <div class="watchlist-add-row">
+        <select id="watchTickerSelect" class="watch-select">
+            {% for ticker, name in stocks.items() %}
+            <option value="{{ ticker }}">{{ ticker }} — {{ name }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn-primary watch-add-btn" onclick="addStock()">+ Add</button>
+    </div>
+</div>
+
+<!-- LIVE PRICES GRID -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">◉ Live Prices</h2>
+        <span class="panel-badge">{{ watchlist|length }} stocks</span>
+    </div>
+
+    {% if watchlist %}
+    <div class="watchlist-grid" id="watchlistGrid">
+        {% for item in watchlist %}
+        <div class="watch-card" id="wcard-{{ item.stock_ticker }}">
+            <div class="watch-card-top">
+                <div>
+                    <div class="watch-ticker">{{ item.stock_ticker }}</div>
+                    <div class="watch-name">{{ item.stock_name }}</div>
+                </div>
+                <button class="remove-btn" onclick="removeStock('{{ item.stock_ticker }}')">✕</button>
+            </div>
+            <div class="watch-price {% if item.up %}price-up{% else %}price-down{% endif %}">
+                {{ item.price if item.price != 'N/A' else 'N/A' }}
+            </div>
+            <div class="watch-change {% if item.up %}price-up{% else %}price-down{% endif %}">
+                {% if item.price != 'N/A' %}
+                    {{ '▲' if item.up else '▼' }}
+                    {{ item.change }} ({{ item.pct }}%)
+                {% else %}
+                    Data unavailable
+                {% endif %}
+            </div>
+            <div class="watch-ohlc">
+                <span>O: {{ item.open if item.open else '—' }}</span>
+                <span>H: {{ item.high if item.high else '—' }}</span>
+                <span>L: {{ item.low if item.low else '—' }}</span>
+            </div>
+            <div class="watch-actions">
+                <a href="{{ url_for('dashboard') }}?ticker={{ item.stock_ticker }}#predict"
+                   class="btn-secondary btn-sm">◎ Predict</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">★</div>
+        <p>Your watchlist is empty. Add stocks above to track live prices!</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addStock() {
+    const ticker = document.getElementById('watchTickerSelect').value;
+    const fd = new FormData();
+    fd.append('ticker', ticker);
+    try {
+        const res  = await fetch('/watchlist/add', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (e) {
+        alert('Failed to add stock');
+    }
+}
+
+async function removeStock(ticker) {
+    const fd = new FormData();
+    fd.append('ticker', ticker);
+    try {
+        const res  = await fetch('/watchlist/remove', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            const card = document.getElementById('wcard-' + ticker);
+            card.style.opacity    = '0';
+            card.style.transform  = 'scale(0.9)';
+            card.style.transition = 'all 0.3s';
+            setTimeout(() => card.remove(), 300);
+        }
+    } catch (e) {
+        alert('Failed to remove');
+    }
+}
+</script>
+{% endblock %}

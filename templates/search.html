@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Search Predictions — StockAI{% endblock %}
+{% block page_title %}Search Predictions{% endblock %}
+
+{% block content %}
+
+<!-- FILTER FORM -->
+<div class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">🔍 Search & Filter Predictions</h2>
+        <span class="panel-badge">{{ results|length }} results</span>
+    </div>
+
+    <form method="GET" action="/search" class="search-form">
+        <div class="search-grid">
+            <div class="field-group">
+                <label>Stock Ticker</label>
+                <input type="text" name="ticker" placeholder="e.g. TCS, INFY, AAPL"
+                       value="{{ filters.ticker }}" list="tickerList">
+                <datalist id="tickerList">
+                    {% for ticker in all_stocks.keys() %}
+                    <option value="{{ ticker }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="field-group">
+                <label>Date From</label>
+                <input type="date" name="date_from" value="{{ filters.date_from }}">
+            </div>
+            <div class="field-group">
+                <label>Date To</label>
+                <input type="date" name="date_to" value="{{ filters.date_to }}">
+            </div>
+            <div class="field-group">
+                <label>Min Confidence %</label>
+                <input type="number" name="min_conf" min="0" max="100" step="0.1"
+                       placeholder="e.g. 80" value="{{ filters.min_conf }}">
+            </div>
+            <div class="field-group">
+                <label>Sort By</label>
+                <select name="sort_by">
+                    <option value="created_at"      {% if filters.sort_by == 'created_at' %}selected{% endif %}>Created Date</option>
+                    <option value="prediction_date" {% if filters.sort_by == 'prediction_date' %}selected{% endif %}>Prediction Date</option>
+                    <option value="confidence"      {% if filters.sort_by == 'confidence' %}selected{% endif %}>Confidence</option>
+                    <option value="predicted_price" {% if filters.sort_by == 'predicted_price' %}selected{% endif %}>Predicted Price</option>
+                    <option value="accuracy"        {% if filters.sort_by == 'accuracy' %}selected{% endif %}>Accuracy</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Order</label>
+                <select name="sort_dir">
+                    <option value="DESC" {% if filters.sort_dir == 'DESC' %}selected{% endif %}>Newest First</option>
+                    <option value="ASC"  {% if filters.sort_dir == 'ASC'  %}selected{% endif %}>Oldest First</option>
+                </select>
+            </div>
+        </div>
+        <div class="search-actions">
+            <button type="submit" class="btn-primary" style="width:auto;padding:11px 32px">🔍 Search</button>
+            <a href="/search" class="btn-secondary">✕ Clear Filters</a>
+        </div>
+    </form>
+</div>
+
+<!-- RESULTS TABLE -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">◈ Results</h2>
+        {% if results %}
+        <div class="export-btns">
+            <a href="/export/csv" class="btn-export">⬇ Export All CSV</a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if results %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Stock</th><th>Pred. Date</th><th>Prev Close</th>
+                    <th>Predicted</th><th>Actual</th><th>Accuracy</th>
+                    <th>Confidence</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in results %}
+                <tr class="clickable-row" onclick="window.location='/prediction/{{ p.id }}'" style="cursor:pointer">
+                    <td><span class="ticker-badge">{{ p.stock_ticker }}</span></td>
+                    <td class="mono">{{ p.prediction_date }}</td>
+                    <td class="mono">{{ p.close_price }}</td>
+                    <td class="mono accent">{{ p.predicted_price }}</td>
+                    <td class="mono">{{ p.actual_price if p.actual_price else '—' }}</td>
+                    <td>
+                        {% if p.accuracy %}
+                        <span class="conf-pill {% if p.accuracy >= 90 %}conf-high{% elif p.accuracy >= 70 %}conf-mid{% else %}conf-low{% endif %}">
+                            {{ p.accuracy }}%
+                        </span>
+                        {% else %}<span class="dim">Pending</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="conf-pill {% if p.confidence >= 90 %}conf-high{% elif p.confidence >= 70 %}conf-mid{% else %}conf-low{% endif %}">
+                            {{ p.confidence }}%
+                        </span>
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <div class="row-actions">
+                            <a href="/prediction/{{ p.id }}" class="btn-secondary btn-sm">👁 View</a>
+                            <button class="btn-delete btn-sm" onclick="deletePred({{ p.id }}, this)">🗑</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <p>No predictions found matching your filters.</p>
+        <a href="/search" class="btn-secondary" style="display:inline-block;margin-top:1rem;text-decoration:none">Clear Filters</a>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deletePred(id, btn) {
+    if (!confirm('Delete this prediction?')) return;
+    const fd = new FormData();
+    try {
+        const res  = await fetch(`/prediction/delete/${id}`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            const row = btn.closest('tr');
+            row.style.opacity   = '0';
+            row.style.transition = 'opacity 0.3s';
+            setTimeout(() => row.remove(), 300);
+        }
+    } catch (e) { alert('Error: ' + e.message); }
+}
+</script>
+{% endblock %}

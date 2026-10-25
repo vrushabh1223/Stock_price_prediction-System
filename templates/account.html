@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}My Account — StockAI{% endblock %}
+{% block page_title %}My Account{% endblock %}
+
+{% block content %}
+<div class="section-grid">
+    <!-- PROFILE CARD -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">◈ Profile</h2>
+        </div>
+        <div class="profile-block">
+            <div class="profile-avatar">{{ user.username[0].upper() }}</div>
+            <div class="profile-info">
+                <div class="profile-name">{{ user.username }}</div>
+                <div class="profile-email mono">{{ user.email }}</div>
+                <div class="profile-since">Member since {{ user.created_at }}</div>
+            </div>
+        </div>
+        <div class="profile-stats">
+            <div class="profile-stat">
+                <span class="profile-stat-val accent">{{ pred_count }}</span>
+                <span class="profile-stat-label">Predictions</span>
+            </div>
+            <div class="profile-stat">
+                <span class="profile-stat-val">{{ avg_acc }}%</span>
+                <span class="profile-stat-label">Avg Accuracy</span>
+            </div>
+            <div class="profile-stat">
+                <span class="profile-stat-val accent">Active</span>
+                <span class="profile-stat-label">Status</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODEL INFO -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">⬡ Model Info</h2>
+        </div>
+        <div class="info-list">
+            <div class="info-row">
+                <span class="info-key">Architecture</span>
+                <span class="info-val mono">LSTM × 2 layers</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Input Sequence</span>
+                <span class="info-val mono">60 days</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Features</span>
+                <span class="info-val mono">Open, High, Low, Close</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Data Source</span>
+                <span class="info-val mono">Yahoo Finance</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Scaler</span>
+                <span class="info-val mono">MinMaxScaler</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Output</span>
+                <span class="info-val mono">Next Day Close</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CHANGE PASSWORD -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">🔑 Change Password</h2>
+    </div>
+    <div class="change-pass-form">
+        <div class="field-group">
+            <label>Current Password</label>
+            <div class="pass-wrap">
+                <input type="password" id="currentPass" placeholder="Enter current password">
+                <button type="button" class="pass-toggle" onclick="toggleVis('currentPass')">👁</button>
+            </div>
+        </div>
+        <div class="field-group">
+            <label>New Password</label>
+            <div class="pass-wrap">
+                <input type="password" id="newPass" placeholder="Min 8 chars, A-Z, a-z, 0-9, !@#$"
+                       oninput="checkNewPass(this.value)">
+                <button type="button" class="pass-toggle" onclick="toggleVis('newPass')">👁</button>
+            </div>
+            <div class="strength-bar-wrap"><div class="strength-bar" id="passBar"></div></div>
+            <div class="pass-checklist" style="margin-top:6px">
+                <span id="pc-len"   class="chk chk-fail">✗ At least 8 characters</span>
+                <span id="pc-upper" class="chk chk-fail">✗ One uppercase (A-Z)</span>
+                <span id="pc-lower" class="chk chk-fail">✗ One lowercase (a-z)</span>
+                <span id="pc-num"   class="chk chk-fail">✗ One number (0-9)</span>
+                <span id="pc-spec"  class="chk chk-fail">✗ One special character</span>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+            <button class="btn-primary" style="width:auto;padding:11px 28px"
+                    id="changePassBtn" onclick="changePassword()" disabled style="opacity:0.5">
+                Update Password
+            </button>
+            <span id="passMsg" style="font-family:var(--font-mono);font-size:0.75rem"></span>
+        </div>
+    </div>
+</div>
+
+<!-- PREDICTION HISTORY (paginated) -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">◈ Prediction History</h2>
+        <div class="export-btns">
+            <a href="/export/csv" class="btn-export">⬇ Export CSV</a>
+        </div>
+    </div>
+
+    <!-- Skeleton loading -->
+    <div id="histSkeleton">
+        {% for i in range(5) %}
+        <div class="skeleton-row"></div>
+        {% endfor %}
+    </div>
+
+    <div class="table-wrap" id="histTable" style="display:none">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th><th>Stock</th><th>Date</th><th>Prev Close</th>
+                    <th>Predicted</th><th>Actual</th><th>Accuracy</th><th>Confidence</th>
+                </tr>
+            </thead>
+            <tbody id="histBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination" id="pagination"></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── CHANGE PASSWORD ───────────────────────────────────
+function toggleVis(id) {
+    const el = document.getElementById(id);
+    el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function checkNewPass(val) {
+    const checks = {
+        len:   val.length >= 8,
+        upper: /[A-Z]/.test(val),
+        lower: /[a-z]/.test(val),
+        num:   /[0-9]/.test(val),
+        spec:  /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val),
+    };
+    const setChk = (id, pass, pt, ft) => {
+        const el = document.getElementById(id);
+        el.textContent = pass ? pt : ft;
+        el.className   = 'chk ' + (pass ? 'chk-pass' : 'chk-fail');
+    };
+    setChk('pc-len',   checks.len,   '✓ At least 8 characters',    '✗ At least 8 characters');
+    setChk('pc-upper', checks.upper, '✓ One uppercase (A-Z)',       '✗ One uppercase (A-Z)');
+    setChk('pc-lower', checks.lower, '✓ One lowercase (a-z)',       '✗ One lowercase (a-z)');
+    setChk('pc-num',   checks.num,   '✓ One number (0-9)',          '✗ One number (0-9)');
+    setChk('pc-spec',  checks.spec,  '✓ One special character',     '✗ One special character');
+
+    const score = Object.values(checks).filter(Boolean).length;
+    const bar   = document.getElementById('passBar');
+    const colors = ['transparent','#ff4466','#ff8c00','#ffd700','#00cc77','#00ff99'];
+    const widths = ['0%','25%','50%','75%','90%','100%'];
+    bar.style.width      = widths[score];
+    bar.style.background = colors[score];
+
+    const allPass = Object.values(checks).every(Boolean);
+    const btn = document.getElementById('changePassBtn');
+    btn.disabled      = !allPass;
+    btn.style.opacity = allPass ? '1' : '0.5';
+}
+
+async function changePassword() {
+    const current = document.getElementById('currentPass').value;
+    const newp    = document.getElementById('newPass').value;
+    const msg     = document.getElementById('passMsg');
+    const fd = new FormData();
+    fd.append('current_password', current);
+    fd.append('new_password', newp);
+    try {
+        const res  = await fetch('/change-password', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            msg.style.color = '#00ff99';
+            msg.textContent = '✓ Password updated successfully!';
+            document.getElementById('currentPass').value = '';
+            document.getElementById('newPass').value = '';
+        } else {
+            msg.style.color = '#ff4466';
+            msg.textContent = '⚠ ' + data.error;
+        }
+    } catch (e) {
+        msg.style.color = '#ff4466';
+        msg.textContent = '⚠ Failed to update password.';
+    }
+}
+
+// ── PAGINATED HISTORY ─────────────────────────────────
+let currentPage = 1;
+const perPage   = 10;
+
+async function loadHistory(page = 1) {
+    document.getElementById('histSkeleton').style.display = 'block';
+    document.getElementById('histTable').style.display    = 'none';
+    document.getElementById('pagination').innerHTML       = '';
+
+    try {
+        const res  = await fetch(`/api/predictions?page=${page}&per_page=${perPage}`);
+        const data = await res.json();
+
+        const tbody = document.getElementById('histBody');
+        tbody.innerHTML = '';
+
+        if (!data.predictions || data.predictions.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-dim);padding:30px">No predictions yet.</td></tr>';
+        } else {
+            data.predictions.forEach((p, i) => {
+                const accPill = p.accuracy
+                    ? `<span class="conf-pill ${p.accuracy >= 90 ? 'conf-high' : p.accuracy >= 70 ? 'conf-mid' : 'conf-low'}">${p.accuracy}%</span>`
+                    : '<span class="dim">Pending</span>';
+                const confCls = p.confidence >= 90 ? 'conf-high' : p.confidence >= 70 ? 'conf-mid' : 'conf-low';
+                const rowNum  = (page - 1) * perPage + i + 1;
+                tbody.innerHTML += `
+                <tr class="clickable-row" onclick="window.location='/prediction/${p.id}'" style="cursor:pointer">
+                    <td class="mono dim">${rowNum}</td>
+                    <td><span class="ticker-badge">${p.stock_ticker}</span></td>
+                    <td class="mono">${p.prediction_date}</td>
+                    <td class="mono">${p.close_price}</td>
+                    <td class="mono accent">${p.predicted_price}</td>
+                    <td class="mono">${p.actual_price ?? '—'}</td>
+                    <td>${accPill}</td>
+                    <td><span class="conf-pill ${confCls}">${p.confidence}%</span></td>
+                </tr>`;
+            });
+        }
+
+        // Build pagination
+        const totalPages = data.total_pages || 1;
+        currentPage = page;
+        let paginHtml = '';
+        if (totalPages > 1) {
+            paginHtml += `<button class="page-btn" onclick="loadHistory(${page-1})" ${page===1?'disabled':''}>← Prev</button>`;
+            for (let p = 1; p <= totalPages; p++) {
+                paginHtml += `<button class="page-btn ${p===page?'page-active':''}" onclick="loadHistory(${p})">${p}</button>`;
+            }
+            paginHtml += `<button class="page-btn" onclick="loadHistory(${page+1})" ${page===totalPages?'disabled':''}>Next →</button>`;
+        }
+        document.getElementById('pagination').innerHTML = paginHtml;
+
+        document.getElementById('histSkeleton').style.display = 'none';
+        document.getElementById('histTable').style.display    = 'block';
+
+    } catch(e) {
+        document.getElementById('histSkeleton').style.display = 'none';
+        document.getElementById('histTable').style.display    = 'block';
+    }
+}
+
+// Load page 1 on startup
+loadHistory(1);
+</script>
+{% endblock %}

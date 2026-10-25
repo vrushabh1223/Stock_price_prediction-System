@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}StockAI{% endblock %}</title>
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#070b14">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="StockAI">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+{% if session.get('user_id') %}
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">StockAI</span>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="{{ url_for('dashboard') }}"
+           class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="nav-icon">⬡</span> Dashboard
+        </a>
+        <a href="{{ url_for('dashboard') }}#predict" class="nav-item">
+            <span class="nav-icon">◎</span> Predict
+        </a>
+        <a href="{{ url_for('watchlist') }}"
+           class="nav-item {% if request.endpoint == 'watchlist' %}active{% endif %}">
+            <span class="nav-icon">★</span> Watchlist
+        </a>
+        <a href="{{ url_for('portfolio') }}"
+           class="nav-item {% if request.endpoint == 'portfolio' %}active{% endif %}">
+            <span class="nav-icon">💼</span> Portfolio
+        </a>
+        <a href="{{ url_for('search') }}"
+           class="nav-item {% if request.endpoint == 'search' %}active{% endif %}">
+            <span class="nav-icon">🔍</span> Search
+        </a>
+        <a href="{{ url_for('leaderboard') }}"
+           class="nav-item {% if request.endpoint == 'leaderboard' %}active{% endif %}">
+            <span class="nav-icon">🏆</span> Leaderboard
+        </a>
+        <a href="{{ url_for('chat_page') }}"
+           class="nav-item {% if request.endpoint == 'chat_page' %}active{% endif %}">
+            <span class="nav-icon">🤖</span> AI Assistant
+        </a>
+        <a href="{{ url_for('alerts') }}"
+           class="nav-item {% if request.endpoint == 'alerts' %}active{% endif %}">
+            <span class="nav-icon">🔔</span> Price Alerts
+        </a>
+        <a href="{{ url_for('accuracy') }}"
+           class="nav-item {% if request.endpoint == 'accuracy' %}active{% endif %}">
+            <span class="nav-icon">◉</span> Accuracy
+        </a>
+        <a href="{{ url_for('notifications') }}"
+           class="nav-item {% if request.endpoint == 'notifications' %}active{% endif %}">
+            <span class="nav-icon">🔔</span> Notifications
+            {% if notif_count and notif_count > 0 %}
+                <span class="badge">{{ notif_count }}</span>
+            {% endif %}
+        </a>
+        <a href="{{ url_for('account') }}"
+           class="nav-item {% if request.endpoint == 'account' %}active{% endif %}">
+            <span class="nav-icon">◈</span> My Account
+        </a>
+        <div class="nav-divider"></div>
+        <a href="{{ url_for('export_csv') }}" class="nav-item">
+            <span class="nav-icon">⬇</span> Export CSV
+        </a>
+        <a href="{{ url_for('export_pdf') }}" target="_blank" class="nav-item">
+            <span class="nav-icon">🖨</span> Export PDF
+        </a>
+        <div class="nav-divider"></div>
+        <a href="{{ url_for('admin_login') }}" class="nav-item nav-admin">
+            <span class="nav-icon">⚙</span> Admin Panel
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="user-chip">
+            <div class="user-avatar">{{ username[0].upper() if username else 'U' }}</div>
+            <span>{{ username }}</span>
+        </div>
+        <a href="{{ url_for('logout') }}" class="logout-btn">⏻ Logout</a>
+    </div>
+</aside>
+
+<header class="topbar">
+    <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+    <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+    <div class="topbar-right">
+        <!-- DARK/LIGHT TOGGLE -->
+        <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark/light mode">
+            <span id="themeIcon">☀️</span>
+        </button>
+        <a href="{{ url_for('notifications') }}" class="notif-btn">
+            🔔
+            {% if notif_count and notif_count > 0 %}
+                <span class="notif-dot"></span>
+            {% endif %}
+        </a>
+        <div class="topbar-user">{{ username }}</div>
+    </div>
+</header>
+
+<main class="main-content">
+{% endif %}
+
+    {% block content %}{% endblock %}
+
+{% if session.get('user_id') %}
+</main>
+{% endif %}
+
+<script src="{{ url_for('static', filename='main.js') }}"></script>
+<script>
+// ── DARK / LIGHT MODE ──────────────────────────────────
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    document.getElementById('themeIcon').textContent = next === 'dark' ? '☀️' : '🌙';
+}
+// Apply saved theme on load
+(function() {
+    const saved = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
+    const icon = document.getElementById('themeIcon');
+    if (icon) icon.textContent = saved === 'dark' ? '☀️' : '🌙';
+})();
+
+// ── TOAST NOTIFICATIONS ─────────────────────────────────
+window.showToast = function(message, type = 'success', duration = 3500) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<span class="toast-icon">${icons[type] || '✓'}</span><span class="toast-msg">${message}</span><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('toast-show'));
+    setTimeout(() => {
+        toast.classList.remove('toast-show');
+        setTimeout(() => toast.remove(), 350);
+    }, duration);
+};
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Price Alerts — StockAI{% endblock %}
+{% block page_title %}Price Alerts{% endblock %}
+
+{% block content %}
+
+<!-- ADD ALERT -->
+<div class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">🔔 Set Price Alert</h2>
+        <span class="panel-badge">Email notification when triggered</span>
+    </div>
+    <div class="alert-add-form">
+        <div class="search-grid">
+            <div class="field-group">
+                <label>Stock</label>
+                <select id="alertTicker">
+                    {% for ticker, name in stocks.items() %}
+                    <option value="{{ ticker }}">{{ ticker }} — {{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Condition</label>
+                <select id="alertDirection">
+                    <option value="above">Price rises ABOVE</option>
+                    <option value="below">Price falls BELOW</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Target Price (₹ / $)</label>
+                <input type="number" id="alertPrice" step="0.01" min="0.01" placeholder="e.g. 4000">
+            </div>
+            <div class="field-group">
+                <label>Alert Email</label>
+                <input type="email" id="alertEmail" value="{{ user_email }}" placeholder="your@email.com">
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+            <button class="btn-primary" style="width:auto;padding:11px 28px" onclick="addAlert()">
+                🔔 Set Alert
+            </button>
+            <span id="alertMsg" style="font-family:var(--font-mono);font-size:0.75rem"></span>
+        </div>
+    </div>
+</div>
+
+<!-- ACTIVE ALERTS -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">◈ My Alerts</h2>
+        <span class="panel-badge">{{ alerts|length }} total</span>
+    </div>
+
+    {% if alerts %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Stock</th><th>Condition</th><th>Target Price</th>
+                    <th>Alert Email</th><th>Status</th><th>Created</th><th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in alerts %}
+                <tr id="alert-row-{{ a.id }}">
+                    <td><span class="ticker-badge">{{ a.ticker }}</span></td>
+                    <td class="mono">
+                        {% if a.direction == 'above' %}
+                            <span style="color:var(--accent)">▲ rises above</span>
+                        {% else %}
+                            <span style="color:var(--danger)">▼ falls below</span>
+                        {% endif %}
+                    </td>
+                    <td class="mono accent">{{ a.target_price }}</td>
+                    <td class="mono dim">{{ a.email }}</td>
+                    <td>
+                        {% if a.is_active %}
+                            <span class="status-dot status-scored">● Active</span>
+                        {% else %}
+                            <span class="status-dot status-pending">✓ Triggered</span>
+                        {% endif %}
+                    </td>
+                    <td class="mono dim">{{ a.created_at }}</td>
+                    <td>
+                        <button class="btn-delete btn-sm" onclick="deleteAlert({{ a.id }})">🗑</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🔔</div>
+        <p>No alerts set yet. Add one above to get notified by email!</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">ℹ How It Works</h2>
+    </div>
+    <div class="info-list">
+        <div class="info-row">
+            <span class="info-key">Check Frequency</span>
+            <span class="info-val mono">Every 1 hour automatically</span>
+        </div>
+        <div class="info-row">
+            <span class="info-key">Notification</span>
+            <span class="info-val mono">Email sent to your alert address</span>
+        </div>
+        <div class="info-row">
+            <span class="info-key">After Trigger</span>
+            <span class="info-val mono">Alert marked as triggered (one-time)</span>
+        </div>
+        <div class="info-row">
+            <span class="info-key">Data Source</span>
+            <span class="info-val mono">Yahoo Finance live prices</span>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addAlert() {
+    const ticker    = document.getElementById('alertTicker').value;
+    const direction = document.getElementById('alertDirection').value;
+    const price     = document.getElementById('alertPrice').value;
+    const email     = document.getElementById('alertEmail').value;
+    const msg       = document.getElementById('alertMsg');
+
+    if (!price || price <= 0) {
+        msg.style.color = '#ff4466';
+        msg.textContent = '⚠ Please enter a valid target price.';
+        return;
+    }
+    if (!email) {
+        msg.style.color = '#ff4466';
+        msg.textContent = '⚠ Please enter an email address.';
+        return;
+    }
+    const fd = new FormData();
+    fd.append('ticker',       ticker);
+    fd.append('direction',    direction);
+    fd.append('target_price', price);
+    fd.append('email',        email);
+    try {
+        const res  = await fetch('/alerts/add', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            msg.style.color = '#00ff99';
+            msg.textContent = '✓ Alert set! You will be emailed when triggered.';
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            msg.style.color = '#ff4466';
+            msg.textContent = '⚠ ' + data.error;
+        }
+    } catch(e) {
+        msg.style.color = '#ff4466';
+        msg.textContent = '⚠ Failed to set alert.';
+    }
+}
+
+async function deleteAlert(id) {
+    if (!confirm('Delete this alert?')) return;
+    const res  = await fetch(`/alerts/delete/${id}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+        const row = document.getElementById(`alert-row-${id}`);
+        row.style.opacity    = '0';
+        row.style.transition = 'opacity 0.3s';
+        setTimeout(() => row.remove(), 300);
+    }
+}
+</script>
+{% endblock %}

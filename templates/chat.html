@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}AI Assistant — StockAI{% endblock %}
+{% block page_title %}AI Assistant{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">🤖 StockAI Chat Assistant</h2>
+        <span class="panel-badge">Powered by AI + Live Market Data</span>
+    </div>
+
+    <!-- STOCK SELECTOR -->
+    <div style="display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
+        <label class="mono dim" style="font-size:0.78rem;">STOCK CONTEXT:</label>
+        <select id="chatTicker" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.82rem;">
+            <option value="">— No specific stock —</option>
+            {% for ticker, name in stocks.items() %}
+            <option value="{{ ticker }}">{{ ticker }} — {{ name }}</option>
+            {% endfor %}
+        </select>
+        <span class="dim mono" style="font-size:0.75rem;">Select a stock to give the AI live price context</span>
+    </div>
+
+    <!-- CHAT WINDOW -->
+    <div class="chat-container">
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-bubble bot">
+                👋 Hi! I'm your StockAI Assistant. Ask me anything about stocks, predictions, market trends, or your accuracy. Select a stock above for live data context!
+            </div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" id="chatInput" placeholder="Ask anything... e.g. Is TCS a good buy today?" onkeydown="if(event.key==='Enter') sendChat()">
+            <button class="chat-send-btn" id="chatSendBtn" onclick="sendChat()">Send →</button>
+        </div>
+    </div>
+
+    <!-- QUICK QUESTIONS -->
+    <div style="margin-top:14px;">
+        <div class="dim mono" style="font-size:0.75rem; margin-bottom:8px;">QUICK QUESTIONS:</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            {% set quick = [
+                "How does LSTM predict prices?",
+                "What does confidence score mean?",
+                "Explain RSI indicator",
+                "Explain MACD indicator",
+                "What are Bollinger Bands?",
+                "How do I climb the leaderboard?",
+                "How do price alerts work?",
+                "Should I diversify my portfolio?",
+                "What affects stock price the most?",
+                "How accurate are your predictions?"
+            ] %}
+            {% for q in quick %}
+            <button class="btn-secondary btn-sm" onclick="quickAsk('{{ q }}')">{{ q }}</button>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function sendChat() {
+    const input   = document.getElementById('chatInput');
+    const btn     = document.getElementById('chatSendBtn');
+    const ticker  = document.getElementById('chatTicker').value;
+    const message = input.value.trim();
+    if (!message) return;
+
+    appendBubble(message, 'user');
+    input.value = '';
+    btn.disabled = true;
+
+    // Typing indicator
+    const typingId = 'typing-' + Date.now();
+    appendBubble('Thinking...', 'bot typing', typingId);
+
+    try {
+        const res  = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, ticker })
+        });
+        const data = await res.json();
+        document.getElementById(typingId)?.remove();
+        appendBubble(data.reply || data.error || 'Sorry, something went wrong.', 'bot');
+    } catch(e) {
+        document.getElementById(typingId)?.remove();
+        appendBubble('Network error. Please try again.', 'bot');
+    }
+    btn.disabled = false;
+    input.focus();
+}
+
+function appendBubble(text, cls, id) {
+    const msgs = document.getElementById('chatMessages');
+    const div  = document.createElement('div');
+    div.className = 'chat-bubble ' + cls;
+    if (id) div.id = id;
+    div.textContent = text;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+function quickAsk(q) {
+    document.getElementById('chatInput').value = q;
+    sendChat();
+}
+</script>
+{% endblock %}

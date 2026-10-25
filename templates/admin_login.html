@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login — StockAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body">
+<div class="auth-bg">
+    <div class="grid-lines"></div>
+    <div class="glow-orb orb1"></div>
+    <div class="glow-orb orb2"></div>
+</div>
+<div class="auth-wrapper" style="justify-content:center">
+    <div class="auth-panel-right" style="flex:0 0 440px">
+        <div class="auth-card">
+            <div style="text-align:center;margin-bottom:24px">
+                <span style="font-size:2rem">⚙</span>
+                <h2 class="form-title" style="margin-top:8px">Admin Panel</h2>
+                <p class="form-subtitle">Restricted access only</p>
+            </div>
+
+            {% if message %}
+                <div class="alert-error">⚠ {{ message }}</div>
+            {% endif %}
+
+            <form action="/admin/login" method="POST" class="auth-form">
+                <div class="field-group">
+                    <label>Admin Username</label>
+                    <input type="text" name="username" placeholder="Enter admin username" required autocomplete="off">
+                </div>
+                <div class="field-group">
+                    <label>Admin Password</label>
+                    <div class="pass-wrap">
+                        <input type="password" name="password" id="passInput" placeholder="Enter admin password" required>
+                        <button type="button" class="pass-toggle" onclick="togglePass()">👁</button>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary">Access Admin Panel →</button>
+            </form>
+
+            <p class="switch-link" style="margin-top:16px">
+                <a href="{{ url_for('login') }}">← Back to user login</a>
+            </p>
+        </div>
+    </div>
+</div>
+<script>
+function togglePass() {
+    const inp = document.getElementById('passInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+</script>
+</body>
+</html>

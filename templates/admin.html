@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — StockAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ADMIN TOPBAR -->
+<header class="admin-topbar">
+    <div class="admin-brand">⚙ StockAI Admin</div>
+    <div class="admin-top-right">
+        <span class="topbar-user">{{ admin_username }}</span>
+        <a href="{{ url_for('admin_logout') }}" class="logout-btn">⏻ Logout</a>
+        <a href="{{ url_for('dashboard') }}" class="btn-secondary btn-sm" style="text-decoration:none">← User App</a>
+    </div>
+</header>
+
+<div class="admin-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="admin-sidebar">
+        <nav class="sidebar-nav" style="padding-top:20px">
+            <a href="#overview"    class="nav-item active"><span class="nav-icon">⬡</span> Overview</a>
+            <a href="#users"       class="nav-item"><span class="nav-icon">◈</span> Users</a>
+            <a href="#predictions" class="nav-item"><span class="nav-icon">◎</span> Predictions</a>
+            <a href="#models"      class="nav-item"><span class="nav-icon">🧠</span> Models</a>
+        </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="admin-main">
+
+        <!-- OVERVIEW STATS -->
+        <div id="overview">
+            <h2 class="admin-section-title">Overview</h2>
+            <div class="stat-cards">
+                <div class="stat-card">
+                    <div class="stat-card-label">Total Users</div>
+                    <div class="stat-card-value accent">{{ total_users }}</div>
+                    <div class="stat-card-sub">registered accounts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Total Predictions</div>
+                    <div class="stat-card-value">{{ total_preds }}</div>
+                    <div class="stat-card-sub">all time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Avg Confidence</div>
+                    <div class="stat-card-value accent">{{ avg_conf }}%</div>
+                    <div class="stat-card-sub">across all predictions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Avg Accuracy</div>
+                    <div class="stat-card-value">{{ avg_acc if avg_acc else '—' }}%</div>
+                    <div class="stat-card-sub">scored predictions</div>
+                </div>
+            </div>
+
+            <!-- TOP STOCKS CHART -->
+            {% if top_stocks %}
+            <div class="panel mt-2">
+                <div class="panel-header">
+                    <h2 class="panel-title">◉ Most Predicted Stocks</h2>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="stockChart"></canvas>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- USERS TABLE -->
+        <div id="users" class="panel mt-2">
+            <div class="panel-header">
+                <h2 class="panel-title">◈ All Users</h2>
+                <span class="panel-badge">{{ users|length }} total</span>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Username</th><th>Email</th>
+                            <th>Predictions</th><th>Joined</th><th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr id="user-row-{{ u.id }}">
+                            <td class="mono dim">{{ u.id }}</td>
+                            <td>
+                                <div class="user-chip" style="display:inline-flex">
+                                    <div class="user-avatar" style="width:28px;height:28px;font-size:0.75rem">
+                                        {{ u.username[0].upper() }}
+                                    </div>
+                                    <span>{{ u.username }}</span>
+                                </div>
+                            </td>
+                            <td class="mono dim">{{ u.email }}</td>
+                            <td><span class="conf-pill conf-mid">{{ u.pred_count }}</span></td>
+                            <td class="mono dim">{{ u.created_at }}</td>
+                            <td>
+                                <button class="btn-delete btn-sm"
+                                        onclick="deleteUser({{ u.id }}, '{{ u.username }}')">
+                                    🗑 Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- RECENT PREDICTIONS TABLE -->
+        <div id="predictions" class="panel mt-2">
+            <div class="panel-header">
+                <h2 class="panel-title">◎ Recent Predictions (All Users)</h2>
+                <span class="panel-badge">{{ recent_preds|length }} shown</span>
+            </div>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>User</th><th>Stock</th><th>Date</th>
+                            <th>Predicted</th><th>Confidence</th><th>Accuracy</th><th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in recent_preds %}
+                        <tr id="pred-row-{{ p.id }}">
+                            <td class="mono accent">{{ p.username }}</td>
+                            <td><span class="ticker-badge">{{ p.stock_ticker }}</span></td>
+                            <td class="mono">{{ p.prediction_date }}</td>
+                            <td class="mono">{{ p.predicted_price }}</td>
+                            <td>
+                                <span class="conf-pill {% if p.confidence >= 85 %}conf-high{% elif p.confidence >= 65 %}conf-mid{% else %}conf-low{% endif %}">
+                                    {{ p.confidence }}%
+                                </span>
+                            </td>
+                            <td>
+                                {% if p.accuracy %}
+                                <span class="conf-pill conf-high">{{ p.accuracy }}%</span>
+                                {% else %}<span class="dim">Pending</span>{% endif %}
+                            </td>
+                            <td>
+                                <button class="btn-delete btn-sm" onclick="deletePred({{ p.id }})">🗑</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- MODELS STATUS -->
+        <div id="models" class="panel mt-2">
+            <div class="panel-header">
+                <h2 class="panel-title">🧠 Model Status</h2>
+                <span class="panel-badge">{{ trained_stocks|length }} / {{ all_stocks|length }} trained</span>
+            </div>
+            <div class="model-grid">
+                {% for ticker, name in all_stocks.items() %}
+                <div class="model-card {% if ticker in trained_stocks %}model-ready{% else %}model-missing{% endif %}">
+                    <div class="model-status-icon">
+                        {% if ticker in trained_stocks %}✓{% else %}✗{% endif %}
+                    </div>
+                    <div class="model-ticker">{{ ticker }}</div>
+                    <div class="model-name">{{ name }}</div>
+                    <div class="model-status-label">
+                        {% if ticker in trained_stocks %}Model Ready{% else %}Not Trained{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+// Top stocks chart
+{% if top_stocks %}
+const ctx = document.getElementById('stockChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ top_stocks | map(attribute='stock_ticker') | list | tojson }},
+        datasets: [{
+            label: 'Predictions',
+            data: {{ top_stocks | map(attribute='cnt') | list | tojson }},
+            backgroundColor: 'rgba(0,255,153,0.5)',
+            borderColor: '#00ff99',
+            borderWidth: 1, borderRadius: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 } },
+                 grid: { color: 'rgba(255,255,255,0.03)' } },
+            y: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 11 } },
+                 grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+    }
+});
+{% endif %}
+
+async function deleteUser(id, name) {
+    if (!confirm(`Delete user "${name}" and ALL their data? This cannot be undone.`)) return;
+    const res  = await fetch(`/admin/delete-user/${id}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+        const row = document.getElementById(`user-row-${id}`);
+        row.style.opacity = '0'; row.style.transition = 'opacity 0.3s';
+        setTimeout(() => row.remove(), 300);
+    } else { alert('Error: ' + data.error); }
+}
+
+async function deletePred(id) {
+    if (!confirm('Delete this prediction?')) return;
+    const res  = await fetch(`/admin/delete-prediction/${id}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+        const row = document.getElementById(`pred-row-${id}`);
+        row.style.opacity = '0'; row.style.transition = 'opacity 0.3s';
+        setTimeout(() => row.remove(), 300);
+    } else { alert('Error: ' + data.error); }
+}
+</script>
+</body>
+</html>

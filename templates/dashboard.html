@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — StockII{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<!-- LIVE TICKER STRIP -->
+<div class="ticker-strip" id="tickerStrip">
+    <div class="ticker-track" id="tickerTrack">
+        <span class="ticker-loading">Loading live prices...</span>
+    </div>
+</div>
+
+<!-- STAT CARDS -->
+<div class="stat-cards">
+    <div class="stat-card">
+        <div class="stat-card-label">Model</div>
+        <div class="stat-card-value accent">LSTM</div>
+        <div class="stat-card-sub">60-day sequence</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-label">Total Predictions</div>
+        <div class="stat-card-value">{{ stats.total or 0 }}</div>
+        <div class="stat-card-sub">by you</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-label">Avg Accuracy</div>
+        <div class="stat-card-value accent">
+            {% if stats.avg_acc %}{{ "%.1f"|format(stats.avg_acc) }}%{% else %}—{% endif %}
+        </div>
+        <div class="stat-card-sub">on scored predictions</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-label">Stocks Covered</div>
+        <div class="stat-card-value">17</div>
+        <div class="stat-card-sub">NSE + NYSE</div>
+    </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="section-grid">
+
+    <!-- PREDICT FORM -->
+    <div class="panel" id="predict">
+        <div class="panel-header">
+            <h2 class="panel-title">◎ Predict Next Day Price</h2>
+            <span class="panel-badge">LSTM Model</span>
+        </div>
+
+        <form id="predictForm" class="predict-form">
+
+            <!-- STOCK SELECTOR -->
+            <div class="field-group">
+                <label>Stock Symbol</label>
+                <div class="search-select-wrap">
+                    <input type="text" id="stockSearch" placeholder="Search stock (e.g. TCS, INFY, AAPL...)"
+                           oninput="filterStocks()" autocomplete="off">
+                    <select name="ticker" id="tickerSelect" required size="1" onchange="onTickerChange()">
+                        {% for ticker, name in stocks.items() %}
+                        <option value="{{ ticker }}" {% if loop.first %}selected{% endif %}>
+                            {{ ticker }} — {{ name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- DATE -->
+            <div class="field-group">
+                <label>Prediction Date</label>
+                <input type="date" name="pred_date" id="predDate" required>
+            </div>
+
+            <!-- AUTO-FILL BUTTON — FEATURE 1 -->
+            <div class="autofill-row">
+                <button type="button" class="btn-autofill" id="autofillBtn" onclick="autoFillPrices()">
+                    ⚡ Auto-fill Latest Prices
+                </button>
+                <span class="autofill-hint" id="autofillHint"></span>
+            </div>
+
+            <!-- PRICE INPUTS -->
+            <div class="price-inputs-grid">
+                <div class="field-group">
+                    <label>Open Price <span class="currency">₹ / $</span></label>
+                    <input type="number" step="0.01" name="open" id="inputOpen" placeholder="e.g. 3850.00" required>
+                </div>
+                <div class="field-group">
+                    <label>High Price <span class="currency">₹ / $</span></label>
+                    <input type="number" step="0.01" name="high" id="inputHigh" placeholder="e.g. 3920.00" required>
+                </div>
+                <div class="field-group">
+                    <label>Low Price <span class="currency">₹ / $</span></label>
+                    <input type="number" step="0.01" name="low" id="inputLow" placeholder="e.g. 3810.00" required>
+                </div>
+                <div class="field-group">
+                    <label>Previous Close <span class="currency">₹ / $</span></label>
+                    <input type="number" step="0.01" name="close" id="inputClose" placeholder="e.g. 3875.00" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary btn-predict" id="predictBtn">
+                <span id="btnText">Run LSTM Prediction →</span>
+                <span id="btnLoader" style="display:none">⏳ Predicting...</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- RESULT PANEL -->
+    <div class="panel" id="resultPanel" style="display:none">
+        <div class="panel-header">
+            <h2 class="panel-title">◉ Prediction Result</h2>
+            <span class="panel-badge" id="resultTicker">—</span>
+        </div>
+
+        <div class="result-cards">
+            <div class="result-card highlight">
+                <div class="result-label">Predicted Close</div>
+                <div class="result-value" id="resPredicted">—</div>
+                <div class="result-dir" id="resDirection">—</div>
+            </div>
+            <div class="result-card">
+                <div class="result-label">Previous Close</div>
+                <div class="result-value" id="resPrevClose">—</div>
+            </div>
+            <div class="result-card">
+                <div class="result-label">Confidence</div>
+                <div class="result-value" id="resConfidence">—</div>
+                <div class="confidence-bar-wrap">
+                    <div class="confidence-bar" id="confBar"></div>
+                </div>
+            </div>
+            <div class="result-card">
+                <div class="result-label">Prediction Date</div>
+                <div class="result-value" id="resPredDate" style="font-size:1.1rem">—</div>
+            </div>
+        </div>
+
+        <!-- ADD TO WATCHLIST -->
+        <div class="result-actions">
+            <button class="btn-secondary" id="addWatchBtn" onclick="addToWatchlist()">
+                ★ Add to Watchlist
+            </button>
+            <a href="/accuracy" class="btn-secondary">📊 View Accuracy</a>
+        </div>
+
+        <div class="chart-wrap">
+            <canvas id="priceChart"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<!-- NEWS FEED -->
+<div class="panel mt-2" id="newsPanel">
+    <div class="panel-header">
+        <h2 class="panel-title">📰 Latest News</h2>
+        <span class="panel-badge" id="newsTickerLabel">Select a stock</span>
+    </div>
+    <div id="newsSkeleton">
+        {% for i in range(4) %}
+        <div class="skeleton-row"></div>
+        {% endfor %}
+    </div>
+    <div id="newsFeed" style="display:none"></div>
+</div>
+{% if recent_preds %}
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">◈ Recent Predictions</h2>
+        <div class="export-btns">
+            <a href="/export/csv" class="btn-export">⬇ Export CSV</a>
+            <a href="/export/pdf" target="_blank" class="btn-export">🖨 Export PDF</a>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Stock</th><th>Date</th><th>Prev Close</th>
+                    <th>Predicted</th><th>Actual</th><th>Accuracy</th><th>Confidence</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in recent_preds %}
+                <tr class="clickable-row" onclick="window.location='/prediction/{{ p.id }}'" style="cursor:pointer">
+                    <td><span class="ticker-badge">{{ p.stock_ticker }}</span></td>
+                    <td class="mono">{{ p.prediction_date }}</td>
+                    <td class="mono">{{ p.close_price }}</td>
+                    <td class="mono accent">{{ p.predicted_price }}</td>
+                    <td class="mono">{{ p.actual_price if p.actual_price else '—' }}</td>
+                    <td>
+                        {% if p.accuracy %}
+                        <span class="conf-pill {% if p.accuracy >= 90 %}conf-high{% elif p.accuracy >= 70 %}conf-mid{% else %}conf-low{% endif %}">
+                            {{ p.accuracy }}%
+                        </span>
+                        {% else %}<span class="dim">Pending</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="conf-pill {% if p.confidence >= 90 %}conf-high{% elif p.confidence >= 70 %}conf-mid{% else %}conf-low{% endif %}">
+                            {{ p.confidence }}%
+                        </span>
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <div class="row-actions">
+                            <a href="/prediction/{{ p.id }}" class="btn-secondary btn-sm">👁 View</a>
+                            <button class="btn-delete btn-sm" onclick="deletePred({{ p.id }}, this)">🗑 Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── LIVE TICKER STRIP ─────────────────────────────────
+async function loadTicker() {
+    try {
+        const res  = await fetch('/api/live-prices');
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) return;
+
+        const track = document.getElementById('tickerTrack');
+        // Build ticker items (duplicated for seamless loop)
+        const items = data.map(s => `
+            <span class="ticker-item">
+                <span class="ticker-sym">${s.ticker}</span>
+                <span class="ticker-price">${s.price}</span>
+                <span class="ticker-chg ${s.up ? 'tick-up' : 'tick-down'}">
+                    ${s.up ? '▲' : '▼'} ${Math.abs(s.pct)}%
+                </span>
+            </span>
+        `).join('<span class="ticker-sep">|</span>');
+
+        track.innerHTML = items + '<span class="ticker-sep"> &nbsp;&nbsp;&nbsp; </span>' + items;
+    } catch (e) {
+        document.getElementById('tickerStrip').style.display = 'none';
+    }
+}
+loadTicker();
+// Refresh every 60 seconds
+setInterval(loadTicker, 60000);
+
+// Set default date to tomorrow
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
+document.getElementById('predDate').value = tomorrow.toISOString().split('T')[0];
+
+// Stock search filter
+const allOptions = Array.from(document.getElementById('tickerSelect').options).map(o => ({
+    value: o.value, text: o.text
+}));
+
+function filterStocks() {
+    const q   = document.getElementById('stockSearch').value.toLowerCase();
+    const sel = document.getElementById('tickerSelect');
+    sel.innerHTML = '';
+    allOptions.filter(o => o.text.toLowerCase().includes(q) || o.value.toLowerCase().includes(q))
+              .forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.value; opt.text = o.text;
+        sel.appendChild(opt);
+    });
+    sel.size = q.length > 0 ? Math.min(5, sel.options.length) : 1;
+}
+
+document.getElementById('stockSearch').addEventListener('blur', () => {
+    setTimeout(() => { document.getElementById('tickerSelect').size = 1; }, 200);
+});
+
+function onTickerChange() {
+    document.getElementById('autofillHint').textContent = '';
+    const ticker = document.getElementById('tickerSelect').value;
+    loadNews(ticker);
+}
+
+async function loadNews(ticker) {
+    document.getElementById('newsTickerLabel').textContent = ticker;
+    document.getElementById('newsSkeleton').style.display = 'block';
+    document.getElementById('newsFeed').style.display     = 'none';
+    try {
+        const res  = await fetch(`/api/news?ticker=${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        const feed = document.getElementById('newsFeed');
+        if (!data.news || data.news.length === 0) {
+            feed.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-icon">📰</div><p>No recent news found for this stock.</p></div>';
+        } else {
+            feed.innerHTML = data.news.map(n => `
+                <a href="${n.url}" target="_blank" class="news-card">
+                    <div class="news-meta">
+                        <span class="news-publisher">${n.publisher}</span>
+                        <span class="news-time">${n.time}</span>
+                    </div>
+                    <div class="news-title">${n.title}</div>
+                    ${n.summary ? `<div class="news-summary">${n.summary}</div>` : ''}
+                </a>
+            `).join('');
+        }
+        document.getElementById('newsSkeleton').style.display = 'none';
+        document.getElementById('newsFeed').style.display     = 'block';
+    } catch(e) {
+        document.getElementById('newsSkeleton').style.display = 'none';
+        document.getElementById('newsFeed').innerHTML = '<p style="color:var(--text-dim);padding:16px;font-family:var(--font-mono);font-size:0.8rem">Failed to load news.</p>';
+        document.getElementById('newsFeed').style.display = 'block';
+    }
+}
+
+// Load news for default stock on page load
+loadNews(document.getElementById('tickerSelect').value);
+
+// ── FEATURE 1: AUTO-FILL ──────────────────────────────
+async function autoFillPrices() {
+    const ticker = document.getElementById('tickerSelect').value;
+    const btn    = document.getElementById('autofillBtn');
+    const hint   = document.getElementById('autofillHint');
+
+    btn.textContent = '⏳ Fetching...';
+    btn.disabled    = true;
+    hint.textContent = '';
+
+    try {
+        const res  = await fetch(`/api/autofill?ticker=${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (data.error) {
+            hint.textContent = '⚠ ' + data.error;
+            hint.style.color = '#ff4466';
+        } else {
+            document.getElementById('inputOpen').value  = data.open;
+            document.getElementById('inputHigh').value  = data.high;
+            document.getElementById('inputLow').value   = data.low;
+            document.getElementById('inputClose').value = data.close;
+            hint.textContent = `✓ Filled with data from ${data.date}`;
+            hint.style.color = '#00ff99';
+        }
+    } catch (e) {
+        hint.textContent = '⚠ Failed to fetch prices';
+        hint.style.color = '#ff4466';
+    } finally {
+        btn.textContent = '⚡ Auto-fill Latest Prices';
+        btn.disabled    = false;
+    }
+}
+
+// ── CHART ─────────────────────────────────────────────
+let priceChart   = null;
+let currentTicker = 'TCS.NS';
+
+// ── PREDICT FORM SUBMIT ───────────────────────────────
+document.getElementById('predictForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    document.getElementById('btnText').style.display   = 'none';
+    document.getElementById('btnLoader').style.display = 'inline';
+    document.getElementById('predictBtn').disabled     = true;
+
+    const formData = new FormData(this);
+    try {
+        const res  = await fetch('/predict', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.error) { alert('Error: ' + data.error); return; }
+
+        currentTicker = data.ticker;
+
+        document.getElementById('resultPanel').style.display = 'block';
+        document.getElementById('resultPanel').scrollIntoView({ behavior: 'smooth' });
+        document.getElementById('resultTicker').textContent   = data.ticker;
+        document.getElementById('resPredicted').textContent   = '₹ ' + data.predicted_price;
+        document.getElementById('resPrevClose').textContent   = '₹ ' + data.previous_close;
+        document.getElementById('resConfidence').textContent  = data.confidence + '%';
+        document.getElementById('resPredDate').textContent    = data.pred_date;
+
+        const dir = document.getElementById('resDirection');
+        dir.textContent = data.direction === 'up' ? '▲ Expected to rise' : '▼ Expected to fall';
+        dir.style.color = data.direction === 'up' ? '#00ff99' : '#ff4466';
+
+        const confBar = document.getElementById('confBar');
+        confBar.style.width      = data.confidence + '%';
+        confBar.style.background = data.confidence >= 85 ? '#00ff99'
+                                 : data.confidence >= 65 ? '#ffd700' : '#ff4466';
+
+        // Build chart
+        const labels = [...data.hist_dates, data.pred_date];
+        if (priceChart) priceChart.destroy();
+        const ctx = document.getElementById('priceChart').getContext('2d');
+        priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: data.stock_name + ' Historical',
+                        data: [...data.hist_closes, null],
+                        borderColor: '#4a9eff',
+                        backgroundColor: 'rgba(74,158,255,0.08)',
+                        pointBackgroundColor: '#4a9eff',
+                        tension: 0.4, fill: true, pointRadius: 4
+                    },
+                    {
+                        label: 'LSTM Prediction',
+                        data: [...Array(data.hist_closes.length - 1).fill(null),
+                               data.hist_closes[data.hist_closes.length - 1],
+                               data.predicted_price],
+                        borderColor: '#00ff99',
+                        backgroundColor: 'rgba(0,255,153,0.1)',
+                        borderDash: [6, 3],
+                        pointBackgroundColor: ['transparent', '#00ff99'],
+                        pointRadius: [0, 8],
+                        tension: 0.4, fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: '#a0aec0', font: { family: 'JetBrains Mono', size: 11 } } },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+                         grid: { color: 'rgba(255,255,255,0.03)' } },
+                    y: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+                         grid: { color: 'rgba(255,255,255,0.05)' } }
+                }
+            }
+        });
+
+    } catch (err) {
+        alert('Request failed: ' + err.message);
+    } finally {
+        document.getElementById('btnText').style.display   = 'inline';
+        document.getElementById('btnLoader').style.display = 'none';
+        document.getElementById('predictBtn').disabled     = false;
+    }
+});
+
+// ── DELETE PREDICTION ────────────────────────────────
+async function deletePred(id, btn) {
+    if (!confirm('Delete this prediction? This cannot be undone.')) return;
+    const fd = new FormData();
+    try {
+        const res  = await fetch(`/prediction/delete/${id}`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            const row = btn.closest('tr');
+            row.style.transition = 'opacity 0.3s, transform 0.3s';
+            row.style.opacity    = '0';
+            row.style.transform  = 'translateX(20px)';
+            setTimeout(() => row.remove(), 300);
+        } else {
+            alert('Failed to delete: ' + data.error);
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function addToWatchlist() {
+    const btn = document.getElementById('addWatchBtn');
+    btn.textContent = '⏳ Adding...';
+    btn.disabled = true;
+    const fd = new FormData();
+    fd.append('ticker', currentTicker);
+    try {
+        const res  = await fetch('/watchlist/add', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            btn.textContent = '✓ Added to Watchlist';
+            btn.style.color = '#00ff99';
+        } else {
+            btn.textContent = '★ Add to Watchlist';
+            btn.disabled = false;
+        }
+    } catch (e) {
+        btn.textContent = '★ Add to Watchlist';
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

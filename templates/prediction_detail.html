@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}Prediction #{{ pred.id }} — StockAI{% endblock %}
+{% block page_title %}Prediction Detail{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<!-- BACK BUTTON -->
+<div class="back-row">
+    <a href="{{ url_for('dashboard') }}" class="btn-secondary">← Back to Dashboard</a>
+    <button class="btn-delete" onclick="deletePred({{ pred.id }})">🗑 Delete This Prediction</button>
+</div>
+
+<!-- HEADER INFO -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <div style="display:flex;align-items:center;gap:14px">
+            <span class="ticker-badge" style="font-size:1rem;padding:6px 16px">{{ pred.stock_ticker }}</span>
+            <h2 class="panel-title">{{ stocks.get(pred.stock_ticker, pred.stock_ticker) }}</h2>
+        </div>
+        <span class="panel-badge">Prediction #{{ pred.id }}</span>
+    </div>
+
+    <!-- RESULT CARDS -->
+    <div class="result-cards">
+        <div class="result-card highlight">
+            <div class="result-label">Predicted Close</div>
+            <div class="result-value accent">₹ {{ pred.predicted_price }}</div>
+            <div class="result-dir" style="color: {% if pred.predicted_price > pred.close_price %}#00ff99{% else %}#ff4466{% endif %}">
+                {% if pred.predicted_price > pred.close_price %}▲ Expected Rise{% else %}▼ Expected Fall{% endif %}
+            </div>
+        </div>
+        <div class="result-card">
+            <div class="result-label">Previous Close</div>
+            <div class="result-value">₹ {{ pred.close_price }}</div>
+        </div>
+        <div class="result-card">
+            <div class="result-label">Confidence</div>
+            <div class="result-value">{{ pred.confidence }}%</div>
+            <div class="confidence-bar-wrap">
+                <div class="confidence-bar" style="width:{{ pred.confidence }}%;background:{% if pred.confidence >= 85 %}#00ff99{% elif pred.confidence >= 65 %}#ffd700{% else %}#ff4466{% endif %}"></div>
+            </div>
+        </div>
+        <div class="result-card">
+            <div class="result-label">Prediction Date</div>
+            <div class="result-value" style="font-size:1.1rem">{{ pred.prediction_date }}</div>
+        </div>
+    </div>
+
+    <!-- ACTUAL vs PREDICTED (if scored) -->
+    {% if pred.actual_price %}
+    <div class="accuracy-banner {% if pred.accuracy >= 90 %}acc-banner-high{% elif pred.accuracy >= 70 %}acc-banner-mid{% else %}acc-banner-low{% endif %}">
+        <div class="acc-banner-left">
+            <div class="acc-banner-label">Actual Price</div>
+            <div class="acc-banner-val">₹ {{ pred.actual_price }}</div>
+        </div>
+        <div class="acc-banner-center">
+            <div class="acc-banner-label">Difference</div>
+            <div class="acc-banner-val">
+                {% set diff = pred.predicted_price - pred.actual_price %}
+                {% if diff > 0 %}+{% endif %}{{ "%.2f"|format(diff) }}
+            </div>
+        </div>
+        <div class="acc-banner-right">
+            <div class="acc-banner-label">Model Accuracy</div>
+            <div class="acc-banner-val accent">{{ pred.accuracy }}%</div>
+        </div>
+    </div>
+    {% else %}
+    <div class="pending-banner">
+        ⏳ Accuracy will be calculated automatically once the prediction date ({{ pred.prediction_date }}) has passed.
+    </div>
+    {% endif %}
+</div>
+
+<!-- INPUT DATA USED -->
+<div class="section-grid mt-2">
+    <div class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">◈ Input Data Used</h2>
+        </div>
+        <div class="info-list">
+            <div class="info-row">
+                <span class="info-key">Open Price</span>
+                <span class="info-val mono">₹ {{ pred.open_price }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">High Price</span>
+                <span class="info-val mono">₹ {{ pred.high_price }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Low Price</span>
+                <span class="info-val mono">₹ {{ pred.low_price }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Previous Close</span>
+                <span class="info-val mono">₹ {{ pred.close_price }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Predicted For</span>
+                <span class="info-val mono">{{ pred.prediction_date }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-key">Predicted On</span>
+                <span class="info-val mono">{{ pred.created_at }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHART -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">◉ Price Chart</h2>
+        </div>
+        {% if hist_closes %}
+        <div class="chart-wrap">
+            <canvas id="detailChart"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:30px">
+            <div class="empty-icon">📊</div>
+            <p>Chart data unavailable for this date range.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ACTION BUTTONS -->
+<div class="panel mt-2">
+    <div class="detail-actions">
+        <a href="{{ url_for('dashboard') }}#predict" class="btn-primary" style="width:auto;text-decoration:none;display:inline-block;padding:12px 28px">
+            ◎ Make New Prediction
+        </a>
+        <a href="{{ url_for('accuracy') }}" class="btn-secondary">📊 View All Accuracy</a>
+        <a href="{{ url_for('export_csv') }}" class="btn-secondary">⬇ Export CSV</a>
+        <button class="btn-delete" onclick="deletePred({{ pred.id }})">🗑 Delete</button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Draw chart if we have historical data
+{% if hist_closes %}
+const histCloses  = {{ hist_closes | tojson }};
+const histDates   = {{ hist_dates  | tojson }};
+const predPrice   = {{ pred.predicted_price }};
+const predDate    = "{{ pred.prediction_date }}";
+const actualPrice = {{ pred.actual_price if pred.actual_price else 'null' }};
+
+// Full labels: historical dates + prediction date
+const labels = [...histDates, predDate];
+const lastHistIdx = histCloses.length - 1;  // index of last historical close
+
+// ── Dataset 1: Historical close line ──────────────────────
+const historicalData = [...histCloses, null];  // null at pred date
+
+// ── Dataset 2: Predicted line (connects from last close → predicted) ──
+const predictedData = [...Array(lastHistIdx).fill(null),
+                        histCloses[lastHistIdx], predPrice];
+
+// ── Dataset 3: Actual line (connects from last close → actual) ──
+const actualData = actualPrice !== null
+    ? [...Array(lastHistIdx).fill(null), histCloses[lastHistIdx], actualPrice]
+    : null;
+
+const datasets = [
+    {
+        label: 'Historical Close',
+        data: historicalData,
+        borderColor: '#4a9eff',
+        backgroundColor: 'rgba(74,158,255,0.07)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#4a9eff',
+        tension: 0.4,
+        fill: true,
+        spanGaps: false,
+    },
+    {
+        label: 'Predicted Price',
+        data: predictedData,
+        borderColor: '#00ff99',
+        backgroundColor: 'rgba(0,255,153,0.08)',
+        borderWidth: 2.5,
+        borderDash: [7, 4],
+        pointRadius: (ctx) => ctx.dataIndex === labels.length - 1 ? 8 : 0,
+        pointBackgroundColor: '#00ff99',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        tension: 0.3,
+        fill: false,
+        spanGaps: false,
+    }
+];
+
+if (actualData) {
+    datasets.push({
+        label: 'Actual Price',
+        data: actualData,
+        borderColor: '#ffd700',
+        backgroundColor: 'rgba(255,215,0,0.08)',
+        borderWidth: 2.5,
+        borderDash: [4, 3],
+        pointRadius: (ctx) => ctx.dataIndex === labels.length - 1 ? 8 : 0,
+        pointBackgroundColor: '#ffd700',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        tension: 0.3,
+        fill: false,
+        spanGaps: false,
+    });
+}
+
+const ctx = document.getElementById('detailChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: {
+                labels: {
+                    color: '#a0aec0',
+                    font: { family: 'JetBrains Mono', size: 11 },
+                    usePointStyle: true, pointStyleWidth: 16,
+                    padding: 20,
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: (ctx) => {
+                        if (ctx.raw === null) return null;
+                        return ` ${ctx.dataset.label}: ₹${ctx.raw}`;
+                    }
+                },
+                backgroundColor: 'rgba(15,20,40,0.95)',
+                titleColor: '#fff',
+                bodyColor: '#a0aec0',
+                borderColor: 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+                padding: 12,
+            },
+            // Vertical line annotation at prediction date
+            annotation: {
+                annotations: {
+                    predLine: {
+                        type: 'line',
+                        xMin: predDate,
+                        xMax: predDate,
+                        borderColor: 'rgba(255,255,255,0.15)',
+                        borderWidth: 1,
+                        borderDash: [4, 4],
+                        label: {
+                            display: true,
+                            content: 'Pred Date',
+                            color: '#64748b',
+                            font: { size: 10, family: 'JetBrains Mono' }
+                        }
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+                grid: { color: 'rgba(255,255,255,0.03)' }
+            },
+            y: {
+                ticks: {
+                    color: '#64748b',
+                    font: { family: 'JetBrains Mono', size: 10 },
+                    callback: (v) => '₹' + v.toLocaleString()
+                },
+                grid: { color: 'rgba(255,255,255,0.05)' }
+            }
+        }
+    }
+});
+{% endif %}
+
+// Delete prediction
+async function deletePred(id) {
+    if (!confirm('Delete this prediction? This cannot be undone.')) return;
+    const fd = new FormData();
+    try {
+        const res  = await fetch(`/prediction/delete/${id}`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = '/dashboard';
+        } else {
+            alert('Failed to delete: ' + data.error);
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

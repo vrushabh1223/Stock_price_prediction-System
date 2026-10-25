@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock AI Predictor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dark">
+
+<div class="container">
+    <div class="card">
+        <h2>📈 AI Stock Predictor</h2>
+        <form action="/predict" method="POST">
+            <input type="number" step="0.01" name="open" placeholder="Open Price" required>
+            <input type="number" step="0.01" name="high" placeholder="High Price" required>
+            <input type="number" step="0.01" name="low" placeholder="Low Price" required>
+            <input type="number" step="0.01" name="close" placeholder="Previous Close" required>
+            <button type="submit">Predict Now</button>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>

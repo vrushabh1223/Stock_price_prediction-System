@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register — StockAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body">
+
+<div class="auth-bg">
+    <div class="grid-lines"></div>
+    <div class="glow-orb orb1"></div>
+    <div class="glow-orb orb2"></div>
+</div>
+
+<div class="auth-wrapper">
+    <div class="auth-panel-left">
+        <div class="brand">
+            <span class="brand-icon">◈</span>
+            <span class="brand-name">StockAI</span>
+        </div>
+        <h1 class="auth-headline">Start your<br><span class="accent">AI-powered</span><br>journey today.</h1>
+        <p class="auth-subtext">Join thousands of traders using LSTM predictions to make smarter decisions.</p>
+        <div class="stats-row">
+            <div class="stat-chip"><span class="stat-val">Free</span><span class="stat-label">To start</span></div>
+            <div class="stat-chip"><span class="stat-val">Live</span><span class="stat-label">Market data</span></div>
+            <div class="stat-chip"><span class="stat-val">NSE+NYSE</span><span class="stat-label">Coverage</span></div>
+        </div>
+    </div>
+
+    <div class="auth-panel-right">
+        <div class="auth-card">
+            <h2 class="form-title">Create account</h2>
+            <p class="form-subtitle">Fill in your details to get started</p>
+
+            {% if message %}
+                <div class="alert-error">⚠ {{ message }}</div>
+            {% endif %}
+
+            <form action="/register" method="POST" class="auth-form" onsubmit="return validateForm()">
+                <div class="field-group">
+                    <label>Username</label>
+                    <input type="text" name="username" placeholder="Choose a username" required>
+                </div>
+                <div class="field-group">
+                    <label>Email Address</label>
+                    <input type="email" name="email" placeholder="your@email.com" required>
+                </div>
+                <div class="field-group">
+                    <label>Password</label>
+                    <div class="pass-wrap">
+                        <input type="password" name="password" id="passInput"
+                               placeholder="Min 8 chars, A-Z, a-z, 0-9, !@#$"
+                               oninput="checkStrength(this.value)" required>
+                        <button type="button" class="pass-toggle" onclick="togglePass()">👁</button>
+                    </div>
+
+                    <!-- Strength Bar -->
+                    <div class="strength-bar-wrap">
+                        <div class="strength-bar" id="strengthBar"></div>
+                    </div>
+                    <div class="strength-label" id="strengthLabel"></div>
+
+                    <!-- Requirements Checklist -->
+                    <div class="pass-checklist">
+                        <span id="chk-len"   class="chk chk-fail">✗ At least 8 characters</span>
+                        <span id="chk-upper" class="chk chk-fail">✗ One uppercase letter (A-Z)</span>
+                        <span id="chk-lower" class="chk chk-fail">✗ One lowercase letter (a-z)</span>
+                        <span id="chk-num"   class="chk chk-fail">✗ One number (0-9)</span>
+                        <span id="chk-spec"  class="chk chk-fail">✗ One special character (!@#$%^&*)</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" id="submitBtn" disabled
+                        style="opacity:0.5;cursor:not-allowed">
+                    Create Account →
+                </button>
+            </form>
+
+            <p class="switch-link">Already have an account? <a href="/login">Sign in</a></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function togglePass() {
+    const inp = document.getElementById('passInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function checkStrength(val) {
+    const checks = {
+        len:   val.length >= 8,
+        upper: /[A-Z]/.test(val),
+        lower: /[a-z]/.test(val),
+        num:   /[0-9]/.test(val),
+        spec:  /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val),
+    };
+
+    // Update each checklist item
+    setChk('chk-len',   checks.len,   '✓ At least 8 characters',          '✗ At least 8 characters');
+    setChk('chk-upper', checks.upper, '✓ One uppercase letter (A-Z)',      '✗ One uppercase letter (A-Z)');
+    setChk('chk-lower', checks.lower, '✓ One lowercase letter (a-z)',      '✗ One lowercase letter (a-z)');
+    setChk('chk-num',   checks.num,   '✓ One number (0-9)',                '✗ One number (0-9)');
+    setChk('chk-spec',  checks.spec,  '✓ One special character (!@#$%^&*)','✗ One special character (!@#$%^&*)');
+
+    // Calculate score
+    const score = Object.values(checks).filter(Boolean).length;
+    const bar   = document.getElementById('strengthBar');
+    const label = document.getElementById('strengthLabel');
+    const btn   = document.getElementById('submitBtn');
+
+    const levels = [
+        { pct: '0%',   color: 'transparent', text: '',          },
+        { pct: '25%',  color: '#ff4466',      text: 'Weak',     },
+        { pct: '50%',  color: '#ff8c00',      text: 'Fair',     },
+        { pct: '75%',  color: '#ffd700',      text: 'Good',     },
+        { pct: '90%',  color: '#00cc77',      text: 'Strong',   },
+        { pct: '100%', color: '#00ff99',      text: 'Very Strong' },
+    ];
+
+    const lvl = levels[score];
+    bar.style.width      = lvl.pct;
+    bar.style.background = lvl.color;
+    label.textContent    = lvl.text;
+    label.style.color    = lvl.color;
+
+    const allPass = Object.values(checks).every(Boolean);
+    btn.disabled       = !allPass;
+    btn.style.opacity  = allPass ? '1'            : '0.5';
+    btn.style.cursor   = allPass ? 'pointer'      : 'not-allowed';
+}
+
+function setChk(id, pass, passText, failText) {
+    const el = document.getElementById(id);
+    el.textContent  = pass ? passText : failText;
+    el.className    = 'chk ' + (pass ? 'chk-pass' : 'chk-fail');
+}
+
+function validateForm() {
+    const val = document.getElementById('passInput').value;
+    if (val.length < 8 || !/[A-Z]/.test(val) || !/[a-z]/.test(val) ||
+        !/[0-9]/.test(val) || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val)) {
+        alert('Please make sure your password meets all requirements.');
+        return false;
+    }
+    return true;
+}
+</script>
+</body>
+</html>

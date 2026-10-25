@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard — StockAI{% endblock %}
+{% block page_title %}Leaderboard{% endblock %}
+
+{% block content %}
+
+<!-- MY STATS BANNER -->
+{% if my_stats and my_stats.total %}
+<div class="panel" style="background: linear-gradient(135deg, rgba(0,255,153,0.08), rgba(74,158,255,0.08)); border-color: rgba(0,255,153,0.2);">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+        <div>
+            <div class="dim mono" style="font-size:0.75rem; margin-bottom:4px">YOUR RANKING</div>
+            <div style="font-family:var(--font-head); font-size:1.4rem; font-weight:700;">{{ username }}</div>
+        </div>
+        <div style="display:flex; gap:32px; flex-wrap:wrap;">
+            <div style="text-align:center">
+                <div class="accent" style="font-size:1.6rem; font-weight:800; font-family:var(--font-head)">{{ my_stats.avg_acc or '—' }}%</div>
+                <div class="dim mono" style="font-size:0.72rem">AVG ACCURACY</div>
+            </div>
+            <div style="text-align:center">
+                <div style="font-size:1.6rem; font-weight:800; font-family:var(--font-head)">{{ my_stats.total }}</div>
+                <div class="dim mono" style="font-size:0.72rem">PREDICTIONS SCORED</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- LEADERBOARD TABLE -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">🏆 Top Predictors</h2>
+        <span class="panel-badge">Top 20 by average accuracy</span>
+    </div>
+
+    {% if leaders %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>User</th>
+                    <th>Avg Accuracy</th>
+                    <th>Predictions</th>
+                    <th>Best Call</th>
+                    <th>Excellent (≥90%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in leaders %}
+                <tr class="{% if l.is_me %}my-row{% endif %}">
+                    <td>
+                        <span class="rank-badge {% if l.rank == 1 %}rank-1{% elif l.rank == 2 %}rank-2{% elif l.rank == 3 %}rank-3{% else %}rank-other{% endif %}">
+                            {% if l.rank == 1 %}🥇{% elif l.rank == 2 %}🥈{% elif l.rank == 3 %}🥉{% else %}{{ l.rank }}{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="mono {% if l.is_me %}accent{% endif %}">
+                            {{ l.username }}{% if l.is_me %} ← you{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="conf-pill {% if l.avg_accuracy >= 90 %}conf-high{% elif l.avg_accuracy >= 75 %}conf-mid{% else %}conf-low{% endif %}">
+                            {{ l.avg_accuracy }}%
+                        </span>
+                    </td>
+                    <td class="mono">{{ l.total_predictions }}</td>
+                    <td class="mono accent">{{ l.best_accuracy }}%</td>
+                    <td class="mono">{{ l.excellent }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🏆</div>
+        <p>No scored predictions yet. Make some predictions and come back!</p>
+        <a href="{{ url_for('dashboard') }}" class="btn-primary" style="display:inline-block;margin-top:12px;text-decoration:none;padding:10px 24px;">Make a Prediction</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- HOW TO RANK -->
+<div class="panel mt-2">
+    <div class="panel-header"><h2 class="panel-title">ℹ How Rankings Work</h2></div>
+    <div class="info-list">
+        <div class="info-row"><span class="info-key">Ranking Metric</span><span class="info-val mono">Average accuracy across all scored predictions</span></div>
+        <div class="info-row"><span class="info-key">Scored When</span><span class="info-val mono">Prediction date has passed + actual price fetched</span></div>
+        <div class="info-row"><span class="info-key">Excellent Badge</span><span class="info-val mono">Predictions with ≥ 90% accuracy</span></div>
+        <div class="info-row"><span class="info-key">Minimum</span><span class="info-val mono">At least 1 scored prediction to appear</span></div>
+    </div>
+</div>
+
+{% endblock %}

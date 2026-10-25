@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Rate Dashboard — StockAI Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ADMIN TOPBAR -->
+<header class="admin-topbar">
+    <div class="admin-brand">⚙ StockAI Admin — Rate Dashboard</div>
+    <div class="admin-top-right">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-secondary btn-sm" style="text-decoration:none">← Back to Admin</a>
+        <a href="{{ url_for('admin_logout') }}" class="logout-btn">⏻ Logout</a>
+    </div>
+</header>
+
+<div style="padding: 80px 28px 28px">
+
+    <!-- CHARTS ROW -->
+    <div class="section-grid mt-2">
+        <!-- Hourly chart -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">◉ Predictions by Hour (Today)</h2>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="hourlyChart"></canvas>
+            </div>
+        </div>
+        <!-- Daily chart -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">◉ Predictions Last 30 Days</h2>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="dailyChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- USER RATE TABLE -->
+    <div class="panel mt-2">
+        <div class="panel-header">
+            <h2 class="panel-title">◈ Predictions Per User</h2>
+            <span class="panel-badge">{{ rate_data|length }} users</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th><th>Email</th>
+                        <th>Today</th><th>This Week</th>
+                        <th>This Month</th><th>All Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rate_data %}
+                    <tr>
+                        <td class="mono accent">{{ r.username }}</td>
+                        <td class="mono dim">{{ r.email }}</td>
+                        <td>
+                            <span class="conf-pill {% if r.today > 10 %}conf-low{% elif r.today > 5 %}conf-mid{% else %}conf-high{% endif %}">
+                                {{ r.today }}
+                            </span>
+                        </td>
+                        <td class="mono">{{ r.week }}</td>
+                        <td class="mono">{{ r.month }}</td>
+                        <td class="mono">{{ r.total }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// Hourly chart
+const hourlyData  = {{ hourly | tojson }};
+const hourLabels  = Array.from({length: 24}, (_, i) => `${i}:00`);
+const hourCounts  = Array(24).fill(0);
+hourlyData.forEach(h => { hourCounts[h.hour] = h.cnt; });
+
+new Chart(document.getElementById('hourlyChart'), {
+    type: 'bar',
+    data: {
+        labels: hourLabels,
+        datasets: [{
+            label: 'Predictions',
+            data: hourCounts,
+            backgroundColor: 'rgba(0,255,153,0.4)',
+            borderColor: '#00ff99',
+            borderWidth: 1, borderRadius: 4,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+            y: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+    }
+});
+
+// Daily chart
+const dailyData = {{ daily | tojson }};
+new Chart(document.getElementById('dailyChart'), {
+    type: 'line',
+    data: {
+        labels: dailyData.map(d => d.day),
+        datasets: [{
+            label: 'Predictions',
+            data: dailyData.map(d => d.cnt),
+            borderColor: '#4a9eff',
+            backgroundColor: 'rgba(74,158,255,0.08)',
+            tension: 0.4, fill: true, pointRadius: 3,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+            y: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+    }
+});
+</script>
+</body>
+</html>

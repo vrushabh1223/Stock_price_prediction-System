@@ -1,0 +1,41 @@
+{
+    "name": "StockAI — LSTM Stock Predictor",
+    "short_name": "StockAI",
+    "description": "AI-powered stock price prediction using LSTM neural networks",
+    "start_url": "/dashboard",
+    "display": "standalone",
+    "background_color": "#070b14",
+    "theme_color": "#070b14",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/static/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/static/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Predict",
+            "url": "/dashboard#predict",
+            "description": "Make a stock prediction"
+        },
+        {
+            "name": "Portfolio",
+            "url": "/portfolio",
+            "description": "View your portfolio"
+        },
+        {
+            "name": "Watchlist",
+            "url": "/watchlist",
+            "description": "View your watchlist"
+        }
+    ]
+}

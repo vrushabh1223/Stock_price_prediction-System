@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Accuracy Tracker — StockAI{% endblock %}
+{% block page_title %}Accuracy Tracker{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<!-- SUMMARY CARDS -->
+<div class="stat-cards">
+    <div class="stat-card">
+        <div class="stat-card-label">Average Accuracy</div>
+        <div class="stat-card-value accent">
+            {% if avg_acc %}{{ avg_acc }}%{% else %}—{% endif %}
+        </div>
+        <div class="stat-card-sub">across scored predictions</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-label">Total Predictions</div>
+        <div class="stat-card-value">{{ preds|length }}</div>
+        <div class="stat-card-sub">all time</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-label">Scored</div>
+        <div class="stat-card-value accent">
+            {{ preds|selectattr('accuracy')|list|length }}
+        </div>
+        <div class="stat-card-sub">have actual price</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-label">Pending</div>
+        <div class="stat-card-value">
+            {{ preds|rejectattr('accuracy')|list|length }}
+        </div>
+        <div class="stat-card-sub">future dates</div>
+    </div>
+</div>
+
+<!-- ACCURACY CHART -->
+{% set scored = preds|selectattr('accuracy')|list %}
+{% if scored %}
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">◉ Accuracy Over Time</h2>
+    </div>
+    <div class="chart-wrap">
+        <canvas id="accChart"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- PREDICTIONS TABLE -->
+<div class="panel mt-2">
+    <div class="panel-header">
+        <h2 class="panel-title">◈ All Predictions vs Actual</h2>
+        <div class="export-btns" style="display:flex;gap:10px;align-items:center;">
+            <button class="btn-secondary btn-sm" id="recalcBtn" onclick="recalculateAll()">🔄 Recalculate Pending</button>
+            <a href="/export/csv" class="btn-export">⬇ Export CSV</a>
+            <a href="/export/pdf" target="_blank" class="btn-export">🖨 Export PDF</a>
+        </div>
+    </div>
+
+    {% if preds %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Stock</th><th>Prediction Date</th>
+                    <th>Predicted</th><th>Actual</th>
+                    <th>Difference</th><th>Accuracy</th><th>Status</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in preds %}
+                <tr class="clickable-row" onclick="window.location='/prediction/{{ p.id }}'" style="cursor:pointer">
+                    <td><span class="ticker-badge">{{ p.stock_ticker }}</span></td>
+                    <td class="mono">{{ p.prediction_date }}</td>
+                    <td class="mono accent">{{ p.predicted_price }}</td>
+                    <td class="mono">{{ p.actual_price if p.actual_price else '—' }}</td>
+                    <td class="mono">
+                        {% if p.actual_price %}
+                            {% set diff = p.predicted_price - p.actual_price %}
+                            <span style="color: {% if diff > 0 %}#00ff99{% else %}#ff4466{% endif %}">
+                                {% if diff > 0 %}+{% endif %}{{ "%.2f"|format(diff) }}
+                            </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if p.accuracy %}
+                        <span class="conf-pill {% if p.accuracy >= 90 %}conf-high{% elif p.accuracy >= 70 %}conf-mid{% else %}conf-low{% endif %}">
+                            {{ p.accuracy }}%
+                        </span>
+                        {% else %}<span class="dim mono">—</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if p.accuracy %}
+                            <span class="status-dot status-scored">✓ Scored</span>
+                        {% elif p.prediction_date %}
+                            <span class="status-dot status-pending">⏳ Pending</span>
+                        {% endif %}
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <div class="row-actions">
+                            <a href="/prediction/{{ p.id }}" class="btn-secondary btn-sm">👁 View</a>
+                            <button class="btn-delete btn-sm" onclick="deletePred({{ p.id }}, this)">🗑</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📊</div>
+        <p>No predictions yet. Make a prediction to start tracking accuracy!</p>
+        <a href="{{ url_for('dashboard') }}#predict" class="btn-primary"
+           style="display:inline-block;text-decoration:none;margin-top:1rem">Go Predict →</a>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% set scored = preds|selectattr('accuracy')|list %}
+{% if scored %}
+<script>
+async function deletePred(id, btn) {
+    if (!confirm('Delete this prediction? This cannot be undone.')) return;
+    const fd = new FormData();
+    try {
+        const res  = await fetch(`/prediction/delete/${id}`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            const row = btn.closest('tr');
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity    = '0';
+            setTimeout(() => row.remove(), 300);
+        }
+    } catch (e) { alert('Error: ' + e.message); }
+}
+
+const accData = {{ scored | map(attribute='accuracy') | list | tojson }};
+const accLabels = {{ scored | map(attribute='stock_ticker') | list | tojson }};
+const accDates  = {{ scored | map(attribute='prediction_date') | map('string') | list | tojson }};
+
+const ctx = document.getElementById('accChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: accDates.map((d, i) => accLabels[i] + ' ' + d),
+        datasets: [{
+            label: 'Accuracy %',
+            data: accData,
+            backgroundColor: accData.map(v =>
+                v >= 90 ? 'rgba(0,255,153,0.6)'
+              : v >= 70 ? 'rgba(255,215,0,0.6)'
+              :           'rgba(255,68,102,0.6)'),
+            borderColor: accData.map(v =>
+                v >= 90 ? '#00ff99' : v >= 70 ? '#ffd700' : '#ff4466'),
+            borderWidth: 1, borderRadius: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + '%' } }
+        },
+        scales: {
+            x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+                 grid: { color: 'rgba(255,255,255,0.03)' } },
+            y: { min: 0, max: 100,
+                 ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 },
+                           callback: v => v + '%' },
+                 grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+    }
+});
+</script>
+{% endif %}
+
+<script>
+async function recalculateAll() {
+    const btn = document.getElementById('recalcBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Calculating...';
+    try {
+        const res  = await fetch('/api/recalculate-accuracy', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            btn.textContent = `✓ Updated ${data.updated} predictions!`;
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            btn.textContent = '⚠ Error';
+            btn.disabled = false;
+        }
+    } catch(e) {
+        btn.textContent = '⚠ Failed';
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}
